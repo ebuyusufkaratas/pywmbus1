@@ -1,0 +1,345 @@
+"""
+Python WMBus - Kablosuz M-Bus Sayaç Okuma Çözümü
+
+Bu dosya, Python WMBus çözümünün yapısal mimarisini gösterir.
+wmbusmeters projesinin benzer bir şekilde ancak Python'da yeniden uygulanmasıdır.
+"""
+
+# Proje Dizin Yapısı
+'''
+pymbus/
+├── src/
+│   ├── __init__.py
+│   ├── meter.py              # Sayaç sınıflarının temel yapısı
+│   ├── telegram.py           # Telegram işleme ve ayrıştırma
+│   ├── protocol.py           # M-Bus protokol uygulaması
+│   ├── decoder.py            # Telegram veri çözümleme işlemleri
+│   ├── formatter.py          # Çıktı formatları (JSON, CSV, vb.)
+│   ├── configuration.py      # Konfigürasyon işleme
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py         # Loglama fonksiyonları
+│   │   ├── encryption.py     # Şifreleme ve çözme yardımcıları
+│   │   └── converters.py     # Birim dönüşümleri, hesaplamalar
+│   ├── drivers/
+│   │   ├── __init__.py
+│   │   ├── driver_base.py    # Temel sürücü sınıfı
+│   │   ├── water/            # Su sayaçları sürücüleri
+│   │   │   ├── __init__.py   
+│   │   │   ├── multical21.py # Örnek: Kamstrup Multical 21 sayaç sürücüsü
+│   │   │   ├── izar.py       # Örnek: Diehl/Sappel IZAR sayaç sürücüsü
+│   │   │   └── ...
+│   │   ├── heat/             # Isı sayaçları sürücüleri  
+│   │   │   ├── __init__.py
+│   │   │   └── ...
+│   │   ├── electricity/      # Elektrik sayaçları sürücüleri
+│   │   │   ├── __init__.py
+│   │   │   └── ...
+│   │   └── auto.py           # Otomatik sürücü seçimi
+│   └── output/
+│       ├── __init__.py
+│       ├── mqtt.py           # MQTT entegrasyonu
+│       ├── database.py       # Veritabanı entegrasyonu
+│       ├── file.py           # Dosya kaydetme
+│       └── shell.py          # Kabuk komutları
+├── tests/                    # Test dosyaları
+│   ├── __init__.py
+│   ├── test_decoder.py
+│   ├── test_drivers.py
+│   └── ...
+├── examples/                 # Örnek kullanımlar
+│   ├── basic_parsing.py
+│   ├── mqtt_integration.py
+│   └── ...
+├── docs/                     # Dokümantasyon
+├── requirements.txt          # Bağımlılıklar
+├── setup.py                  # Kurulum dosyası
+└── README.md                 # Proje açıklaması
+
+'''
+
+# Ana Bileşenler ve İlişkileri
+
+# 1. Meter (Sayaç) Sınıfı - Temel Yapı
+'''
+Meter sınıfı, sayaç bilgilerini ve işlevlerini tutar
+
+- Özellikler:
+  - name: Sayaç için kullanıcı tanımlı isim
+  - id: Sayaç kimliği (numarası)
+  - type: Sayaç tipi (su, ısı, elektrik, vb.)
+  - driver: Kullanılan sürücü
+  - key: Şifreleme anahtarı (varsa)
+
+- Metodlar:
+  - process_telegram(): Telegram işleme
+  - get_reading(): Son okumayı alma
+  - to_json(), to_csv(): Çıktı formatları
+'''
+
+# 2. Telegram İşleme 
+'''
+- Telegram ayrıştırma ve işleme
+- Veri yapısı çözümleme
+- CRC doğrulama
+- Şifre çözme
+'''
+
+# 3. Sürücü Sistemi
+'''
+Farklı sayaçlar için sürücü yapısı
+
+- Her sayaç tipi için ayrı sürücü
+- Otomatik sürücü tespiti
+- Veri çözümleme ve anlamlandırma
+- Birim dönüşümleri
+'''
+
+# 4. Yapılandırma Yönetimi
+'''
+- Yapılandırma dosyaları okuma
+- Komut satırı argümanları işleme
+- Sayaç tanımlarını yönetme
+'''
+
+# 5. Çıktı Yönetimi
+'''
+- Farklı çıktı formatları (JSON, CSV, insan okunabilir)
+- MQTT, veritabanı, dosya, kabuk komutları entegrasyonu
+'''
+
+# Örnek: meter.py Sınıf Yapısı
+class Meter:
+    """
+    Temel sayaç sınıfı - tüm sayaç tipleri için temel işlevler
+    """
+    
+    def __init__(self, name, meter_id, driver_name, key=None):
+        """
+        Args:
+            name: Sayaç için kullanıcı tanımlı isim
+            meter_id: Sayaç kimliği (W-MBus ID)
+            driver_name: Kullanılacak sürücü adı
+            key: Şifreleme anahtarı (gerekirse)
+        """
+        self.name = name
+        self.id = meter_id
+        self.driver_name = driver_name
+        self.key = key
+        self.last_reading = None
+        self.driver = None
+        
+    def load_driver(self):
+        """Sayaç için uygun sürücüyü yükler"""
+        # Dinamik sürücü yükleme kodları
+        pass
+        
+    def process_telegram(self, telegram_data):
+        """
+        Sayaç için bir telegram işler
+        
+        Args:
+            telegram_data: İşlenecek ham telegram verisi
+            
+        Returns:
+            bool: İşleme başarılı mı?
+        """
+        if not self.driver:
+            self.load_driver()
+            
+        # Telegram'ı sürücü aracılığıyla işleme ve okuma oluşturma
+        self.last_reading = self.driver.decode_telegram(telegram_data, self.key)
+        return self.last_reading is not None
+        
+    def to_json(self):
+        """Son okumayı JSON formatında döndürür"""
+        if not self.last_reading:
+            return None
+            
+        # JSON formatında okuma verisi oluştur
+        return self.driver.format_json(self.name, self.id, self.last_reading)
+        
+    def to_csv(self):
+        """Son okumayı CSV formatında döndürür"""
+        if not self.last_reading:
+            return None
+            
+        # CSV formatında okuma verisi oluştur
+        return self.driver.format_csv(self.name, self.id, self.last_reading)
+
+# Örnek: Sürücü Temel Sınıfı
+class DriverBase:
+    """Tüm sayaç sürücüleri için temel sınıf"""
+    
+    def __init__(self):
+        self.manufacturer = None
+        self.type = None
+        self.version = None
+        
+    def can_handle(self, telegram_header):
+        """
+        Bu sürücünün söz konusu telegramı işleyip işleyemeyeceğini kontrol eder
+        
+        Args:
+            telegram_header: Telegram başlık bilgileri (üretici, tip, versiyon)
+            
+        Returns:
+            bool: Bu sürücü telegramı işleyebilir mi?
+        """
+        # Sürücü uyumluluk kontrolü
+        pass
+        
+    def decode_telegram(self, telegram_data, key=None):
+        """
+        Telegram verilerini çözümle
+        
+        Args:
+            telegram_data: Ham telegram verisi
+            key: Şifreleme anahtarı (gerekirse)
+            
+        Returns:
+            dict: Çözümlenmiş değerler veya None (başarısız ise)
+        """
+        # Telegram çözümleme işlemi
+        pass
+        
+    def format_json(self, name, meter_id, reading):
+        """
+        Okuma verisini JSON formatında biçimlendirir
+        
+        Args:
+            name: Sayaç adı
+            meter_id: Sayaç kimliği
+            reading: Okuma verileri sözlüğü
+            
+        Returns:
+            str: JSON formatında veri
+        """
+        # JSON çıktı oluşturma
+        pass
+        
+    def format_csv(self, name, meter_id, reading):
+        """
+        Okuma verisini CSV formatında biçimlendirir
+        
+        Args:
+            name: Sayaç adı
+            meter_id: Sayaç kimliği
+            reading: Okuma verileri sözlüğü
+            
+        Returns:
+            str: CSV formatında veri
+        """
+        # CSV çıktı oluşturma
+        pass
+
+# Örnek: Telegram İşleme
+class TelegramParser:
+    """M-Bus telegramlarını ayrıştırma ve işleme"""
+    
+    @staticmethod
+    def parse_telegram(data):
+        """
+        Ham telegram verisini ayrıştırır
+        
+        Args:
+            data: Ham telegram verisi (hex string veya bytes)
+            
+        Returns:
+            dict: Telegram başlık ve gövde bilgileri
+        """
+        # Telegram ayrıştırma işlemi
+        pass
+        
+    @staticmethod
+    def validate_crc(data):
+        """
+        Telegram CRC doğrulaması yapar
+        
+        Args:
+            data: Doğrulanacak veri
+            
+        Returns:
+            bool: CRC doğru mu?
+        """
+        # CRC doğrulama işlemi
+        pass
+        
+    @staticmethod
+    def decrypt_telegram(data, key):
+        """
+        Şifreli telegramı çözer
+        
+        Args:
+            data: Şifreli veri
+            key: Şifreleme anahtarı
+            
+        Returns:
+            bytes: Çözülmüş veri
+        """
+        # AES şifre çözme işlemi
+        pass
+
+# Örnek: PyMBus Ana Sınıfı
+class PyMBus:
+    """PyMBus ana uygulama sınıfı"""
+    
+    def __init__(self, config_file=None):
+        """
+        Args:
+            config_file: Yapılandırma dosyası yolu (isteğe bağlı)
+        """
+        self.meters = []
+        self.config = {}
+        
+        if config_file:
+            self.load_config(config_file)
+            
+    def load_config(self, config_file):
+        """
+        Yapılandırma dosyasını yükler
+        
+        Args:
+            config_file: Yapılandırma dosyası yolu
+        """
+        # Yapılandırma dosyası okuma
+        pass
+        
+    def add_meter(self, name, meter_id, driver_name, key=None):
+        """
+        Yeni bir sayaç ekler
+        
+        Args:
+            name: Sayaç için kullanıcı tanımlı isim
+            meter_id: Sayaç kimliği
+            driver_name: Kullanılacak sürücü adı
+            key: Şifreleme anahtarı (gerekirse)
+        """
+        meter = Meter(name, meter_id, driver_name, key)
+        self.meters.append(meter)
+        
+    def process_telegram(self, telegram_data):
+        """
+        Alınan bir telegramı işler
+        
+        Args:
+            telegram_data: İşlenecek ham telegram verisi
+            
+        Returns:
+            Meter: Telegramı işleyen sayaç veya None
+        """
+        # Telegramı tüm sayaçlar üzerinde dene
+        pass
+        
+    def analyze_telegram(self, telegram_data):
+        """
+        Bir telegramı analiz eder ve uygun sürücüyü önerir
+        
+        Args:
+            telegram_data: İşlenecek ham telegram verisi
+            
+        Returns:
+            dict: Telegram analiz sonuçları
+        """
+        # Telegram analizi
+        pass
